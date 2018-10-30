@@ -10,14 +10,28 @@ use chrono::{DateTime, FixedOffset};
 use std::collections::HashMap;
 
 pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
-    println!("Parsing logs from {}", log_path);
+    let metadata = fs::metadata(log_path).unwrap();
+    if metadata.is_file() {
+        print_file_stats(log_path);
+    } else if metadata.is_dir() {
+        print_dir_stats(log_path);
+    }
+    Ok(())
+}
 
+fn print_dir_stats(log_path: &String) {
+    println!("Parsing logs from {}", log_path);
+    for entry in fs::read_dir(log_path).unwrap() {
+        print_file_stats(&String::from(entry.unwrap().path().to_str().unwrap()));
+    }
+}
+
+fn print_file_stats(log_path: &String) {
+    println!("Parsing logs from {}", log_path);
     let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
     let group_by_path = parse_file(contents);
     let stats: Vec<(usize, String)> = compute_stats(&group_by_path);
     print_stats(stats);
-
-    Ok(())
 }
 
 fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, String)> {
