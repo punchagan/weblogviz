@@ -25,6 +25,7 @@ pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Debug)]
 struct ParsedLine {
     ip: String,
     date: DateTime<FixedOffset>,
