@@ -13,6 +13,30 @@ pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
     println!("Parsing logs from {}", log_path);
 
     let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
+    let group_by_path = parse_file(contents);
+    let stats: Vec<(usize, String)> = compute_stats(group_by_path);
+    print_stats(stats);
+
+    Ok(())
+}
+
+fn compute_stats(path_map: HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, String)> {
+    let mut counts: Vec<(usize, String)> = Vec::new();
+    for (key, value) in path_map {
+        counts.push((value.len(), key));
+    }
+    // Reverse sort
+    counts.sort_by(|a, b| b.cmp(a));
+    counts
+}
+
+fn print_stats(counts: Vec<(usize, String)>) {
+    for (count, path) in &counts[..10] {
+        println!("{}: {}", count, path);
+    }
+}
+
+fn parse_file(contents: String) -> HashMap<String, Vec<ParsedLine>> {
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
@@ -22,8 +46,7 @@ pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
             parsed_lines.push(parsed);
         }
     }
-    println!("{:#?}", group_by_path);
-    Ok(())
+    group_by_path
 }
 
 #[derive(Debug)]
