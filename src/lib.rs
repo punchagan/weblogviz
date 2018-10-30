@@ -100,4 +100,20 @@ mod tests {
             parsed_line.user_agent
         );
     }
+
+    #[test]
+    fn parse_multiple_lines() {
+        let log_contents = "49.206.4.211 - - [29/Oct/2018:07:35:39 -0700] \"GET / HTTP/1.1\" 200 14643 \"http://google.com\" \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0\"
+54.166.138.147 - - [29/Oct/2018:07:39:20 -0700] \"GET /rss.xml HTTP/1.1\" 301 3977 \"-\" \"curl\"
+54.166.138.147 - - [29/Oct/2018:07:39:20 -0700] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"curl\"
+34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
+195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
+
+        let parsed_content = parse_file(String::from(log_contents));
+        assert_eq!(parsed_content.keys().len(), 2);
+        assert_eq!(parsed_content.contains_key("/rss.xml"), false);
+        assert_eq!(parsed_content.get("/index.xml").unwrap().len(), 2);
+        assert_eq!(parsed_content.get("/").unwrap().len(), 1);
+    }
+
 }
