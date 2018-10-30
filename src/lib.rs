@@ -7,21 +7,22 @@ use std::error::Error;
 use std::fs;
 use regex::Regex;
 use chrono::{DateTime, FixedOffset};
+use std::collections::HashMap;
 
 pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
     println!("Parsing logs from {}", log_path);
 
     let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
+    let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
         if parsed.status == 200 {
-            println!(
-                "{} from {} by {}-{} at {}",
-                parsed.path, parsed.referrer, parsed.user_agent, parsed.ip, parsed.date
-            );
+            let path = parsed.path.to_string();
+            let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
+            parsed_lines.push(parsed);
         }
     }
-
+    println!("{:#?}", group_by_path);
     Ok(())
 }
 
