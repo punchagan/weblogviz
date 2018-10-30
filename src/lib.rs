@@ -85,18 +85,19 @@ mod tests {
     #[test]
     fn parse_one_line() {
         let log_line = "49.206.4.211 - - [29/Oct/2018:07:35:39 -0700] \"GET / HTTP/1.1\" 200 14643 \"http://google.com\" \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0\"";
+        let parsed_line = parse_line(log_line);
 
-        assert_eq!("49.206.4.211", parse_line(log_line).ip);
+        assert_eq!("49.206.4.211", parsed_line.ip);
         assert_eq!(
             DateTime::parse_from_rfc3339("2018-10-29T07:35:39-07:00").unwrap(),
-            parse_line(log_line).date
+            parsed_line.date
         );
-        assert_eq!("/", parse_line(log_line).path);
-        assert_eq!(200, parse_line(log_line).status);
-        assert_eq!("http://google.com", parse_line(log_line).referrer);
+        assert_eq!("/", parsed_line.path);
+        assert_eq!(200, parsed_line.status);
+        assert_eq!("http://google.com", parsed_line.referrer);
         assert_eq!(
             "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0",
-            parse_line(log_line).user_agent
+            parsed_line.user_agent
         );
     }
 }
