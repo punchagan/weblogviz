@@ -12,7 +12,7 @@ use std::error::Error;
 use std::fs;
 use std::sync::mpsc;
 
-pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
+pub fn run(log_path: &String, n: usize) -> Result<(), Box<dyn Error>> {
     let metadata = fs::metadata(log_path).unwrap();
     let path_log_map;
     if metadata.is_file() {
@@ -24,7 +24,7 @@ pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
     }
 
     let stats = compute_stats(&path_log_map);
-    print_stats(stats, 10);
+    print_stats(stats, n);
     Ok(())
 }
 

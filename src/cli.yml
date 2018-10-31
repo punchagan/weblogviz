@@ -7,3 +7,7 @@ args:
         help: Sets the input file to use
         required: true
         index: 1
+    - n:
+        help: Number of items to print
+        short: n
+        takes_value: true
