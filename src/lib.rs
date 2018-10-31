@@ -76,11 +76,9 @@ fn parse_file(contents: String) -> HashMap<String, Vec<ParsedLine>> {
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
-        if parsed.status == 200 {
-            let path = parsed.path.to_string();
-            let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
-            parsed_lines.push(parsed);
-        }
+        let path = parsed.path.to_string();
+        let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
+        parsed_lines.push(parsed);
     }
     group_by_path
 }
