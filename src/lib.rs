@@ -4,11 +4,11 @@ extern crate chrono;
 extern crate regex;
 extern crate threadpool;
 
+use chrono::{DateTime, FixedOffset};
+use regex::Regex;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
-use regex::Regex;
-use chrono::{DateTime, FixedOffset};
-use std::collections::HashMap;
 use std::sync::mpsc;
 
 pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
