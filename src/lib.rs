@@ -13,47 +13,18 @@ use std::sync::mpsc;
 
 pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
     let metadata = fs::metadata(log_path).unwrap();
+    let path_log_map;
     if metadata.is_file() {
-        print_file_stats(log_path);
+        path_log_map = parse_file(log_path);
     } else if metadata.is_dir() {
-        print_dir_stats(log_path);
+        path_log_map = parse_dir(log_path);
+    } else {
+        path_log_map = HashMap::new();
     }
-    Ok(())
-}
 
-fn print_dir_stats(log_path: &String) {
-    println!("Parsing logs from {}", log_path);
-    let (tx, rx) = mpsc::channel();
-    let mut file_count = 0;
-    let num_pool_workers = 4;
-    let pool = threadpool::ThreadPool::new(num_pool_workers);
-    for entry in fs::read_dir(log_path).unwrap() {
-        file_count += 1;
-        let tx = mpsc::Sender::clone(&tx);
-        pool.execute(move || {
-            let log_path = String::from(entry.unwrap().path().to_str().unwrap());
-            let contents =
-                fs::read_to_string(log_path).expect("Something went wrong reading the file");
-            let group_by_path = parse_file(contents);
-            tx.send(group_by_path).unwrap();
-        });
-    }
-    let mut path_log_map: HashMap<String, Vec<ParsedLine>> = HashMap::new();
-    for mut received in rx.iter().take(file_count) {
-        for (path, logs) in &mut received {
-            let all_path_logs = path_log_map.entry(path.to_string()).or_insert(Vec::new());
-            all_path_logs.append(logs);
-        }
-    }
-    print_stats(compute_stats(&path_log_map));
-}
-
-fn print_file_stats(log_path: &String) {
-    println!("Parsing logs from {}", log_path);
-    let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
-    let group_by_path = parse_file(contents);
-    let stats: Vec<(usize, String)> = compute_stats(&group_by_path);
+    let stats = compute_stats(&path_log_map);
     print_stats(stats);
+    Ok(())
 }
 
 fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, String)> {
@@ -72,7 +43,38 @@ fn print_stats(counts: Vec<(usize, String)>) {
     }
 }
 
-fn parse_file(contents: String) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_dir(log_path: &String) -> HashMap<String, Vec<ParsedLine>> {
+    println!("Parsing logs from {}", log_path);
+    let (tx, rx) = mpsc::channel();
+    let mut file_count = 0;
+    let num_pool_workers = 4;
+    let pool = threadpool::ThreadPool::new(num_pool_workers);
+    for entry in fs::read_dir(log_path).unwrap() {
+        file_count += 1;
+        let tx = mpsc::Sender::clone(&tx);
+        pool.execute(move || {
+            let log_path = String::from(entry.unwrap().path().to_str().unwrap());
+            let group_by_path = parse_file(&log_path);
+            tx.send(group_by_path).unwrap();
+        });
+    }
+    let mut path_log_map: HashMap<String, Vec<ParsedLine>> = HashMap::new();
+    for mut received in rx.iter().take(file_count) {
+        for (path, logs) in &mut received {
+            let all_path_logs = path_log_map.entry(path.to_string()).or_insert(Vec::new());
+            all_path_logs.append(logs);
+        }
+    }
+    path_log_map
+}
+
+fn parse_file(log_path: &String) -> HashMap<String, Vec<ParsedLine>> {
+    println!("Parsing logs from {}", log_path);
+    let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
+    parse_string(contents)
+}
+
+fn parse_string(contents: String) -> HashMap<String, Vec<ParsedLine>> {
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
@@ -143,7 +145,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
-        let parsed_content = parse_file(String::from(log_contents));
+        let parsed_content = parse_string(String::from(log_contents));
         assert_eq!(parsed_content.keys().len(), 2);
         assert_eq!(parsed_content.contains_key("/rss.xml"), false);
         assert_eq!(parsed_content.get("/index.xml").unwrap().len(), 2);
@@ -158,7 +160,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
-        let parsed_content = parse_file(String::from(log_contents));
+        let parsed_content = parse_string(String::from(log_contents));
         let stats = compute_stats(&parsed_content);
         assert_eq!(stats[0], (2, String::from("/index.xml")));
     }
