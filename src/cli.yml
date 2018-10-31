@@ -1,0 +1,9 @@
+name: weblogviz
+version: "0.1.0"
+author: Puneeth Chaganti <punchagan@muse-amuse.in>
+about: Parse and Visualize apache web logs
+args:
+    - INPUT:
+        help: Sets the input file to use
+        required: true
+        index: 1
