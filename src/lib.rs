@@ -2,13 +2,13 @@
 extern crate lazy_static;
 extern crate chrono;
 extern crate regex;
+extern crate threadpool;
 
 use std::error::Error;
 use std::fs;
 use regex::Regex;
 use chrono::{DateTime, FixedOffset};
 use std::collections::HashMap;
-use std::thread;
 use std::sync::mpsc;
 
 pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
@@ -25,10 +25,12 @@ fn print_dir_stats(log_path: &String) {
     println!("Parsing logs from {}", log_path);
     let (tx, rx) = mpsc::channel();
     let mut file_count = 0;
+    let num_pool_workers = 4;
+    let pool = threadpool::ThreadPool::new(num_pool_workers);
     for entry in fs::read_dir(log_path).unwrap() {
         file_count += 1;
         let tx = mpsc::Sender::clone(&tx);
-        thread::spawn(move || {
+        pool.execute(move || {
             let log_path = String::from(entry.unwrap().path().to_str().unwrap());
             let contents =
                 fs::read_to_string(log_path).expect("Something went wrong reading the file");
@@ -37,8 +39,7 @@ fn print_dir_stats(log_path: &String) {
         });
     }
     let mut path_log_map: HashMap<String, Vec<ParsedLine>> = HashMap::new();
-    for (i, mut received) in rx.iter().take(file_count).enumerate() {
-        println!("{}", i);
+    for mut received in rx.iter().take(file_count) {
         for (path, logs) in &mut received {
             let all_path_logs = path_log_map.entry(path.to_string()).or_insert(Vec::new());
             all_path_logs.append(logs);
