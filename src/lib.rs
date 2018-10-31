@@ -6,6 +6,7 @@ extern crate threadpool;
 
 use chrono::{DateTime, FixedOffset};
 use regex::Regex;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
@@ -23,7 +24,7 @@ pub fn run(log_path: &String) -> Result<(), Box<dyn Error>> {
     }
 
     let stats = compute_stats(&path_log_map);
-    print_stats(stats);
+    print_stats(stats, 10);
     Ok(())
 }
 
@@ -37,8 +38,9 @@ fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, Str
     counts
 }
 
-fn print_stats(counts: Vec<(usize, String)>) {
-    for (count, path) in &counts[..10] {
+fn print_stats(counts: Vec<(usize, String)>, top_n: usize) {
+    let n = min(top_n, counts.len());
+    for (count, path) in &counts[..n] {
         println!("{}: {}", count, path);
     }
 }
