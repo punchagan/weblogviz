@@ -12,13 +12,13 @@ use std::error::Error;
 use std::fs;
 use std::sync::mpsc;
 
-pub fn run(log_path: &String, n: usize) -> Result<(), Box<dyn Error>> {
+pub fn run(log_path: &String, n: usize, include_errors: bool) -> Result<(), Box<dyn Error>> {
     let metadata = fs::metadata(log_path).unwrap();
     let path_log_map;
     if metadata.is_file() {
-        path_log_map = parse_file(log_path);
+        path_log_map = parse_file(log_path, include_errors);
     } else if metadata.is_dir() {
-        path_log_map = parse_dir(log_path);
+        path_log_map = parse_dir(log_path, include_errors);
     } else {
         path_log_map = HashMap::new();
     }
@@ -45,7 +45,7 @@ fn print_stats(counts: Vec<(usize, String)>, top_n: usize) {
     }
 }
 
-fn parse_dir(log_path: &String) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_dir(log_path: &String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
     println!("Parsing logs from {}", log_path);
     let (tx, rx) = mpsc::channel();
     let mut file_count = 0;
@@ -56,7 +56,7 @@ fn parse_dir(log_path: &String) -> HashMap<String, Vec<ParsedLine>> {
         let tx = mpsc::Sender::clone(&tx);
         pool.execute(move || {
             let log_path = String::from(entry.unwrap().path().to_str().unwrap());
-            let group_by_path = parse_file(&log_path);
+            let group_by_path = parse_file(&log_path, include_errors);
             tx.send(group_by_path).unwrap();
         });
     }
@@ -70,19 +70,21 @@ fn parse_dir(log_path: &String) -> HashMap<String, Vec<ParsedLine>> {
     path_log_map
 }
 
-fn parse_file(log_path: &String) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_file(log_path: &String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
     println!("Parsing logs from {}", log_path);
     let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
-    parse_string(contents)
+    parse_string(contents, include_errors)
 }
 
-fn parse_string(contents: String) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_string(contents: String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
         let path = parsed.path.to_string();
-        let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
-        parsed_lines.push(parsed);
+        if include_errors || parsed.status == 200 {
+            let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
+            parsed_lines.push(parsed);
+        }
     }
     group_by_path
 }
@@ -147,7 +149,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
-        let parsed_content = parse_string(String::from(log_contents));
+        let parsed_content = parse_string(String::from(log_contents), false);
         assert_eq!(parsed_content.keys().len(), 2);
         assert_eq!(parsed_content.contains_key("/rss.xml"), false);
         assert_eq!(parsed_content.get("/index.xml").unwrap().len(), 2);
@@ -162,7 +164,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
-        let parsed_content = parse_string(String::from(log_contents));
+        let parsed_content = parse_string(String::from(log_contents), false);
         let stats = compute_stats(&parsed_content);
         assert_eq!(stats[0], (2, String::from("/index.xml")));
     }

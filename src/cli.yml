@@ -11,3 +11,7 @@ args:
         help: Number of items to print
         short: n
         takes_value: true
+    - include-errors:
+        help: Include error lines in all calculations
+        short: e
+        long: include-errors
