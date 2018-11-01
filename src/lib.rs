@@ -1,15 +1,18 @@
 #[macro_use]
 extern crate lazy_static;
 extern crate chrono;
+extern crate flate2;
 extern crate regex;
 extern crate threadpool;
 
 use chrono::{DateTime, FixedOffset};
+use flate2::read::GzDecoder;
 use regex::Regex;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
+use std::io::prelude::Read;
 use std::sync::mpsc;
 
 pub fn run(paths: Vec<String>, n: usize, include_errors: bool) -> Result<(), Box<dyn Error>> {
@@ -81,9 +84,23 @@ fn parse_files(log_paths: Vec<String>, include_errors: bool) -> HashMap<String, 
     path_log_map
 }
 
+fn read_file(path: &String) -> String {
+    let contents: String;
+    if path.ends_with(".gz") {
+        let mut gz = GzDecoder::new(fs::File::open(path).unwrap());
+        let mut s = String::new();
+        gz.read_to_string(&mut s).unwrap();
+        contents = s;
+    } else {
+        contents = fs::read_to_string(path).expect("Something went wrong reading the file");
+    }
+
+    contents
+}
+
 fn parse_file(log_path: &String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
     println!("Parsing logs from {}", log_path);
-    let contents = fs::read_to_string(log_path).expect("Something went wrong reading the file");
+    let contents = read_file(log_path);
     parse_string(contents, include_errors)
 }
 
