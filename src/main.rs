@@ -8,7 +8,11 @@ fn main() {
     let yaml = load_yaml!("cli.yml");
     let m = clap::App::from_yaml(yaml).get_matches();
     let num_log: Result<usize, _> = String::from(m.value_of("n").unwrap_or("10")).parse();
-    let path = m.value_of("INPUT").unwrap();
+    let paths: Vec<String> = m
+        .values_of("INPUT")
+        .unwrap()
+        .map(|e| String::from(e))
+        .collect();
     let include_errors = m.is_present("include-errors");
     match num_log {
         Err(_) => {
@@ -18,7 +22,7 @@ fn main() {
         Ok(_) => {}
     }
 
-    if let Err(e) = weblogviz::run(&String::from(path), num_log.unwrap(), include_errors) {
+    if let Err(e) = weblogviz::run(paths, num_log.unwrap(), include_errors) {
         println!("Application error: {}", e);
         process::exit(1);
     }

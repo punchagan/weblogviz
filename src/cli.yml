@@ -6,6 +6,7 @@ args:
     - INPUT:
         help: Sets the input file to use
         required: true
+        multiple: true
         index: 1
     - n:
         help: Number of items to print

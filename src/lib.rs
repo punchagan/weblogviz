@@ -12,15 +12,20 @@ use std::error::Error;
 use std::fs;
 use std::sync::mpsc;
 
-pub fn run(log_path: &String, n: usize, include_errors: bool) -> Result<(), Box<dyn Error>> {
-    let metadata = fs::metadata(log_path).unwrap();
+pub fn run(paths: Vec<String>, n: usize, include_errors: bool) -> Result<(), Box<dyn Error>> {
     let path_log_map;
-    if metadata.is_file() {
-        path_log_map = parse_file(log_path, include_errors);
-    } else if metadata.is_dir() {
-        path_log_map = parse_dir(log_path, include_errors);
+    if paths.len() > 1 {
+        path_log_map = parse_files(paths, include_errors);
     } else {
-        path_log_map = HashMap::new();
+        let log_path = &paths[0];
+        let metadata = fs::metadata(log_path).unwrap();
+        if metadata.is_file() {
+            path_log_map = parse_file(log_path, include_errors);
+        } else if metadata.is_dir() {
+            path_log_map = parse_dir(log_path, include_errors);
+        } else {
+            path_log_map = HashMap::new();
+        }
     }
 
     let stats = compute_stats(&path_log_map);
@@ -46,17 +51,22 @@ fn print_stats(counts: Vec<(usize, String)>, top_n: usize) {
 }
 
 fn parse_dir(log_path: &String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
-    println!("Parsing logs from {}", log_path);
+    let paths = fs::read_dir(log_path).unwrap();
+    let log_paths = paths
+        .map(|entry| String::from(entry.unwrap().path().to_str().unwrap()).clone())
+        .collect::<Vec<String>>();
+    parse_files(log_paths, include_errors)
+}
+
+fn parse_files(log_paths: Vec<String>, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
     let (tx, rx) = mpsc::channel();
-    let mut file_count = 0;
+    let file_count = log_paths.len();
     let num_pool_workers = 4;
     let pool = threadpool::ThreadPool::new(num_pool_workers);
-    for entry in fs::read_dir(log_path).unwrap() {
-        file_count += 1;
+    for entry in log_paths {
         let tx = mpsc::Sender::clone(&tx);
         pool.execute(move || {
-            let log_path = String::from(entry.unwrap().path().to_str().unwrap());
-            let group_by_path = parse_file(&log_path, include_errors);
+            let group_by_path = parse_file(&entry, include_errors);
             tx.send(group_by_path).unwrap();
         });
     }
