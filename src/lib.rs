@@ -71,6 +71,7 @@ fn parse_files(log_paths: Vec<String>, include_errors: bool) -> HashMap<String, 
         });
     }
     let mut path_log_map: HashMap<String, Vec<ParsedLine>> = HashMap::new();
+    // FIXME: What if one of the thread crashes?
     for mut received in rx.iter().take(file_count) {
         for (path, logs) in &mut received {
             let all_path_logs = path_log_map.entry(path.to_string()).or_insert(Vec::new());
