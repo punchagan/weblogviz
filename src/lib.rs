@@ -37,8 +37,16 @@ pub fn run(paths: Vec<String>, n: usize, config: Config) -> Result<(), Box<dyn E
 }
 
 fn is_media_path(path: &String) -> bool {
-    let re = Regex::new(r"^.*\.(txt|xml|css|js|jpg|png|gif|svg|ico|otf)$").unwrap();
-    return re.is_match(&path.to_lowercase());
+    let media_re = Regex::new(r"^.*\.(txt|xml|css|js|jpg|png|gif|svg|ico|otf)$").unwrap();
+    return media_re.is_match(&path.to_lowercase());
+}
+
+fn is_crawler(user_agent: &String) -> bool {
+    let re = Regex::new(
+        r"(https:|http:|Bot|bot|crawler|spider|compatible;|subscriber|Gwene|Zapier|Automattic|WhatsApp|curl|scraper|Wget|Python|Ruby|Go|Rome|Jersey|Emacs|\+collection@|Slack|Reeder|Twitter|requests|Apache-|perl|uatools)",
+    )
+    .unwrap();
+    return re.is_match(&user_agent);
 }
 
 fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, String)> {
@@ -121,6 +129,7 @@ fn parse_string(contents: String, config: Config) -> HashMap<String, Vec<ParsedL
         let path = parsed.path.to_string();
         if (config.include_errors || parsed.status == 200)
             && (config.include_media || !is_media_path(&path))
+            && (config.include_crawlers || !is_crawler(&path))
         {
             let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
             parsed_lines.push(parsed);
@@ -145,6 +154,7 @@ pub struct Config {
     pub ignore_query_params: bool,
     pub include_errors: bool,
     pub include_media: bool,
+    pub include_crawlers: bool,
 }
 
 fn parse_line<'a>(line: &'a str) -> ParsedLine {

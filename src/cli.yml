@@ -20,6 +20,10 @@ args:
         help: Include logs for non-HTML content
         short: m
         long: include-media
+    - include-crawlers:
+        help: Include logs from crawler-like user agents
+        short: c
+        long: include-crawlers
     - ignore-query-params:
         help: Ignore query parameters in the path
         long: ignore-query-params

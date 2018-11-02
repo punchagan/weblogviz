@@ -16,6 +16,7 @@ fn main() {
     let config = weblogviz::Config {
         include_errors: m.is_present("include-errors"),
         include_media: m.is_present("include-media"),
+        include_crawlers: m.is_present("include-crawlers"),
         ignore_query_params: m.is_present("ignore-query-params"),
     };
     match num_log {
