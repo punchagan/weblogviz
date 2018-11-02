@@ -114,6 +114,10 @@ fn parse_string(contents: String, config: Config) -> HashMap<String, Vec<ParsedL
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let mut parsed = parse_line(line);
+        if config.ignore_query_params {
+            let path_fragments: Vec<&str> = parsed.path.split("?").collect();
+            parsed.path = String::from(path_fragments[0]);
+        }
         let path = parsed.path.to_string();
         if (config.include_errors || parsed.status == 200)
             && (config.include_media || !is_media_path(&path))
@@ -138,6 +142,7 @@ struct ParsedLine {
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    pub ignore_query_params: bool,
     pub include_errors: bool,
     pub include_media: bool,
 }
@@ -194,6 +199,7 @@ mod tests {
         let config = Config {
             include_media: true,
             include_errors: false,
+            ignore_query_params: true,
         };
         let parsed_content = parse_string(String::from(log_contents), config);
         assert_eq!(parsed_content.keys().len(), 2);
@@ -213,6 +219,7 @@ mod tests {
         let config = Config {
             include_media: true,
             include_errors: false,
+            ignore_query_params: true,
         };
         let parsed_content = parse_string(String::from(log_contents), config);
         let stats = compute_stats(&parsed_content);
