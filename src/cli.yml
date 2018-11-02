@@ -16,3 +16,7 @@ args:
         help: Include error lines in all calculations
         short: e
         long: include-errors
+    - include-media:
+        help: Include logs for non-HTML content
+        short: m
+        long: include-media

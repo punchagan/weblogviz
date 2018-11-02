@@ -15,17 +15,22 @@ use std::fs;
 use std::io::prelude::Read;
 use std::sync::mpsc;
 
-pub fn run(paths: Vec<String>, n: usize, include_errors: bool) -> Result<(), Box<dyn Error>> {
+pub fn run(
+    paths: Vec<String>,
+    n: usize,
+    include_errors: bool,
+    include_media: bool,
+) -> Result<(), Box<dyn Error>> {
     let path_log_map;
     if paths.len() > 1 {
-        path_log_map = parse_files(paths, include_errors);
+        path_log_map = parse_files(paths, include_errors, include_media);
     } else {
         let log_path = &paths[0];
         let metadata = fs::metadata(log_path).unwrap();
         if metadata.is_file() {
-            path_log_map = parse_file(log_path, include_errors);
+            path_log_map = parse_file(log_path, include_errors, include_media);
         } else if metadata.is_dir() {
-            path_log_map = parse_dir(log_path, include_errors);
+            path_log_map = parse_dir(log_path, include_errors, include_media);
         } else {
             path_log_map = HashMap::new();
         }
@@ -34,6 +39,11 @@ pub fn run(paths: Vec<String>, n: usize, include_errors: bool) -> Result<(), Box
     let stats = compute_stats(&path_log_map);
     print_stats(stats, n);
     Ok(())
+}
+
+fn is_media_path(path: &String) -> bool {
+    let re = Regex::new(r"^.*\.(txt|xml|css|js|jpg|png|gif|svg|ico|otf)$").unwrap();
+    return re.is_match(&path.to_lowercase());
 }
 
 fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, String)> {
@@ -53,15 +63,23 @@ fn print_stats(counts: Vec<(usize, String)>, top_n: usize) {
     }
 }
 
-fn parse_dir(log_path: &String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_dir(
+    log_path: &String,
+    include_errors: bool,
+    include_media: bool,
+) -> HashMap<String, Vec<ParsedLine>> {
     let paths = fs::read_dir(log_path).unwrap();
     let log_paths = paths
         .map(|entry| String::from(entry.unwrap().path().to_str().unwrap()).clone())
         .collect::<Vec<String>>();
-    parse_files(log_paths, include_errors)
+    parse_files(log_paths, include_errors, include_media)
 }
 
-fn parse_files(log_paths: Vec<String>, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_files(
+    log_paths: Vec<String>,
+    include_errors: bool,
+    include_media: bool,
+) -> HashMap<String, Vec<ParsedLine>> {
     let (tx, rx) = mpsc::channel();
     let file_count = log_paths.len();
     let num_pool_workers = 4;
@@ -69,7 +87,7 @@ fn parse_files(log_paths: Vec<String>, include_errors: bool) -> HashMap<String, 
     for entry in log_paths {
         let tx = mpsc::Sender::clone(&tx);
         pool.execute(move || {
-            let group_by_path = parse_file(&entry, include_errors);
+            let group_by_path = parse_file(&entry, include_errors, include_media);
             tx.send(group_by_path).unwrap();
         });
     }
@@ -98,18 +116,26 @@ fn read_file(path: &String) -> String {
     contents
 }
 
-fn parse_file(log_path: &String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_file(
+    log_path: &String,
+    include_errors: bool,
+    include_media: bool,
+) -> HashMap<String, Vec<ParsedLine>> {
     println!("Parsing logs from {}", log_path);
     let contents = read_file(log_path);
-    parse_string(contents, include_errors)
+    parse_string(contents, include_errors, include_media)
 }
 
-fn parse_string(contents: String, include_errors: bool) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_string(
+    contents: String,
+    include_errors: bool,
+    include_media: bool,
+) -> HashMap<String, Vec<ParsedLine>> {
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
         let path = parsed.path.to_string();
-        if include_errors || parsed.status == 200 {
+        if (include_errors || parsed.status == 200) && (include_media || !is_media_path(&path)) {
             let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
             parsed_lines.push(parsed);
         }
@@ -121,6 +147,7 @@ fn parse_string(contents: String, include_errors: bool) -> HashMap<String, Vec<P
 struct ParsedLine {
     ip: String,
     date: DateTime<FixedOffset>,
+    // FIXME: It might be better to do actual URL parsing at some point
     path: String,
     status: i32,
     referrer: String,
@@ -177,7 +204,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
-        let parsed_content = parse_string(String::from(log_contents), false);
+        let parsed_content = parse_string(String::from(log_contents), false, true);
         assert_eq!(parsed_content.keys().len(), 2);
         assert_eq!(parsed_content.contains_key("/rss.xml"), false);
         assert_eq!(parsed_content.get("/index.xml").unwrap().len(), 2);
@@ -192,7 +219,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
-        let parsed_content = parse_string(String::from(log_contents), false);
+        let parsed_content = parse_string(String::from(log_contents), false, true);
         let stats = compute_stats(&parsed_content);
         assert_eq!(stats[0], (2, String::from("/index.xml")));
     }

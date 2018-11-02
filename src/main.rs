@@ -14,6 +14,7 @@ fn main() {
         .map(|e| String::from(e))
         .collect();
     let include_errors = m.is_present("include-errors");
+    let include_media = m.is_present("include-media");
     match num_log {
         Err(_) => {
             println!("Number of lines needs to be a number");
@@ -22,7 +23,7 @@ fn main() {
         Ok(_) => {}
     }
 
-    if let Err(e) = weblogviz::run(paths, num_log.unwrap(), include_errors) {
+    if let Err(e) = weblogviz::run(paths, num_log.unwrap(), include_errors, include_media) {
         println!("Application error: {}", e);
         process::exit(1);
     }
