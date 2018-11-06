@@ -37,15 +37,20 @@ pub fn run(paths: Vec<String>, n: usize, config: Config) -> Result<(), Box<dyn E
 }
 
 fn is_media_path(path: &String) -> bool {
-    let media_re = Regex::new(r"^.*\.(txt|xml|css|js|jpg|png|gif|svg|ico|otf)$").unwrap();
+    lazy_static! {
+        static ref media_re: Regex =
+            Regex::new(r"^.*\.(txt|xml|css|js|jpg|png|gif|svg|ico|otf)$").unwrap();
+    }
     return media_re.is_match(&path.to_lowercase());
 }
 
 fn is_crawler(user_agent: &String) -> bool {
-    let re = Regex::new(
-        r"(https:|http:|Bot|bot|crawler|spider|compatible;|subscriber|Gwene|Zapier|Automattic|WhatsApp|curl|scraper|Wget|Python|Ruby|Go|Rome|Jersey|Emacs|\+collection@|Slack|Reeder|Twitter|requests|Apache-|perl|uatools)",
-    )
-    .unwrap();
+    lazy_static! {
+        static ref re: Regex = Regex::new(
+            r"(https:|http:|Bot|bot|crawler|spider|compatible;|subscriber|Gwene|Zapier|Automattic|WhatsApp|curl|scraper|Wget|Python|Ruby|Go|Rome|Jersey|Emacs|\+collection@|Slack|Reeder|Twitter|requests|Apache-|perl|uatools)"
+        ).unwrap();
+
+    }
     return re.is_match(&user_agent);
 }
 
