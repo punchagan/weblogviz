@@ -129,7 +129,7 @@ fn parse_string(contents: String, config: Config) -> HashMap<String, Vec<ParsedL
         let path = parsed.path.to_string();
         if (config.include_errors || parsed.status == 200)
             && (config.include_media || !is_media_path(&path))
-            && (config.include_crawlers || !is_crawler(&path))
+            && (config.include_crawlers || !is_crawler(&parsed.user_agent))
         {
             let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
             parsed_lines.push(parsed);
