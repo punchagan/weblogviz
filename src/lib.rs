@@ -212,6 +212,7 @@ mod tests {
 34.239.107.223 - - [29/Oct/2018:07:40:44 -0700] \"HEAD /rss.xml HTTP/1.1\" 301 3258 \"-\" \"Slackbot 1.0 (+https://api.slack.com/robots)\"
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
         let config = Config {
+            include_crawlers: true,
             include_media: true,
             include_errors: false,
             ignore_query_params: true,
@@ -232,6 +233,7 @@ mod tests {
 195.159.176.226 - - [28/Oct/2018:11:05:15 +0530] \"GET /index.xml HTTP/1.1\" 200 42318 \"-\" \"Gwene/1.0 (The gwene.org rss-to-news gateway)\"";
 
         let config = Config {
+            include_crawlers: true,
             include_media: true,
             include_errors: false,
             ignore_query_params: true,
