@@ -169,9 +169,9 @@ pub struct Config {
 
 fn parse_line<'a>(line: &'a str) -> Option<ParsedLine> {
     lazy_static! {
-        static ref RE: Regex = Regex::new(r#"^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(.*?)\] "([A-Z]+) (.*?) HTTP/*.*" (\d{3}) (\d+) "(.*?)" "(.*?)"$"#).unwrap();
+        static ref log_line_re: Regex = Regex::new(r#"^([0-9a-f:]+?|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(.*?)\] "([A-Z]+) (.*?) HTTP/*.*" (\d{3}) (\d+) "(.*?)" "(.*?)"$"#).unwrap();
     }
-    let captures = RE.captures(line);
+    let captures = log_line_re.captures(line);
     match captures {
         Some(captures) => Some(ParsedLine {
             ip: String::from(captures.get(1).unwrap().as_str()),
