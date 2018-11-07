@@ -126,7 +126,12 @@ fn parse_file(log_path: &String, config: Config) -> HashMap<String, Vec<ParsedLi
 fn parse_string(contents: String, config: Config) -> HashMap<String, Vec<ParsedLine>> {
     let mut group_by_path = HashMap::new();
     for line in contents.lines() {
-        let mut parsed = parse_line(line);
+        let parsed = parse_line(line);
+        if parsed.is_none() {
+            println!("Skipping line: {}", line);
+            continue;
+        }
+        let mut parsed = parsed.unwrap();
         if config.ignore_query_params {
             let path_fragments: Vec<&str> = parsed.path.split("?").collect();
             parsed.path = String::from(path_fragments[0]);
@@ -162,22 +167,28 @@ pub struct Config {
     pub include_crawlers: bool,
 }
 
-fn parse_line<'a>(line: &'a str) -> ParsedLine {
+fn parse_line<'a>(line: &'a str) -> Option<ParsedLine> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r#"^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(.*?)\] "([A-Z]+) (.*?) HTTP/*.*" (\d{3}) (\d+) "(.*?)" "(.*?)"$"#).unwrap();
     }
-    let captures = RE.captures(line).unwrap();
+    let captures = RE.captures(line);
+    match captures {
+        Some(captures) => Some(ParsedLine {
+            ip: String::from(captures.get(1).unwrap().as_str()),
+            date: DateTime::parse_from_str(
+                captures.get(2).unwrap().as_str(),
+                "%d/%b/%Y:%H:%M:%S %z",
+            )
+            .unwrap(),
+            path: String::from(captures.get(4).unwrap().as_str()),
+            status: String::from(captures.get(5).unwrap().as_str())
+                .parse()
+                .unwrap(),
+            referrer: String::from(captures.get(7).unwrap().as_str()),
+            user_agent: String::from(captures.get(8).unwrap().as_str()),
+        }),
 
-    ParsedLine {
-        ip: String::from(captures.get(1).unwrap().as_str()),
-        date: DateTime::parse_from_str(captures.get(2).unwrap().as_str(), "%d/%b/%Y:%H:%M:%S %z")
-            .unwrap(),
-        path: String::from(captures.get(4).unwrap().as_str()),
-        status: String::from(captures.get(5).unwrap().as_str())
-            .parse()
-            .unwrap(),
-        referrer: String::from(captures.get(7).unwrap().as_str()),
-        user_agent: String::from(captures.get(8).unwrap().as_str()),
+        None => None,
     }
 }
 
@@ -188,7 +199,7 @@ mod tests {
     #[test]
     fn parse_one_line() {
         let log_line = "49.206.4.211 - - [29/Oct/2018:07:35:39 -0700] \"GET / HTTP/1.1\" 200 14643 \"http://google.com\" \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:64.0) Gecko/20100101 Firefox/64.0\"";
-        let parsed_line = parse_line(log_line);
+        let parsed_line = parse_line(log_line).unwrap();
 
         assert_eq!("49.206.4.211", parsed_line.ip);
         assert_eq!(
