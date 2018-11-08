@@ -1,5 +1,5 @@
 name: weblogviz
-version: "0.1.1"
+version: "0.2.0"
 author: Puneeth Chaganti <punchagan@muse-amuse.in>
 about: Parse and Visualize apache web logs
 args:
