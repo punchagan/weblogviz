@@ -5,34 +5,35 @@ extern crate flate2;
 extern crate regex;
 extern crate threadpool;
 
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use flate2::read::GzDecoder;
 use regex::Regex;
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fs;
 use std::io::prelude::Read;
 use std::sync::mpsc;
 
 pub fn run(paths: Vec<String>, n: usize, config: Config) -> Result<(), Box<dyn Error>> {
-    let path_log_map;
+    let log_db;
     if paths.len() > 1 {
-        path_log_map = parse_files(paths, config);
+        log_db = parse_files(paths, config);
     } else {
         let log_path = &paths[0];
         let metadata = fs::metadata(log_path).unwrap();
         if metadata.is_file() {
-            path_log_map = parse_file(log_path, config);
+            log_db = parse_file(log_path, config);
         } else if metadata.is_dir() {
-            path_log_map = parse_dir(log_path, config);
+            log_db = parse_dir(log_path, config);
         } else {
-            path_log_map = HashMap::new();
+            log_db = LogDB::new();
         }
     }
 
-    let stats = compute_stats(&path_log_map);
+    let stats = compute_stats(&log_db);
     print_stats(stats, n);
+    print_daily_hits(&log_db, n);
     Ok(())
 }
 
@@ -54,9 +55,9 @@ fn is_crawler(user_agent: &String) -> bool {
     return re.is_match(&user_agent);
 }
 
-fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, String)> {
+fn compute_stats(log_db: &LogDB) -> Vec<(usize, String)> {
     let mut counts: Vec<(usize, String)> = Vec::new();
-    for (key, value) in path_map {
+    for (key, value) in &log_db.by_path {
         counts.push((value.len(), key.to_string()));
     }
     // Reverse sort
@@ -66,12 +67,25 @@ fn compute_stats(path_map: &HashMap<String, Vec<ParsedLine>>) -> Vec<(usize, Str
 
 fn print_stats(counts: Vec<(usize, String)>, top_n: usize) {
     let n = min(top_n, counts.len());
+    println!("URL paths with the most hits (overall) - Top {}", n);
+    println!("# of hits:\tpath");
     for (count, path) in &counts[..n] {
-        println!("{}: {}", count, path);
+        println!("{}:\t\t{}", count, path);
+    }
+    println!("##############################################");
+}
+
+fn print_daily_hits(log_db: &LogDB, last_n: usize) {
+    println!("Date:\t\t# of hits");
+    let mut sorted_dates: Vec<NaiveDate> = log_db.by_date.keys().cloned().collect();
+    sorted_dates.sort_by(|a, b| b.cmp(a));
+    let n = min(last_n, sorted_dates.len());
+    for date in &sorted_dates[..n] {
+        println!("{}:\t{}", date, log_db.by_date.get(date).unwrap().len());
     }
 }
 
-fn parse_dir(log_path: &String, config: Config) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_dir(log_path: &String, config: Config) -> LogDB {
     let paths = fs::read_dir(log_path).unwrap();
     let log_paths = paths
         .map(|entry| String::from(entry.unwrap().path().to_str().unwrap()).clone())
@@ -79,7 +93,7 @@ fn parse_dir(log_path: &String, config: Config) -> HashMap<String, Vec<ParsedLin
     parse_files(log_paths, config)
 }
 
-fn parse_files(log_paths: Vec<String>, config: Config) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_files(log_paths: Vec<String>, config: Config) -> LogDB {
     let (tx, rx) = mpsc::channel();
     let file_count = log_paths.len();
     let num_pool_workers = 4;
@@ -92,15 +106,12 @@ fn parse_files(log_paths: Vec<String>, config: Config) -> HashMap<String, Vec<Pa
             tx.send(group_by_path).unwrap();
         });
     }
-    let mut path_log_map: HashMap<String, Vec<ParsedLine>> = HashMap::new();
+    let mut log_db = LogDB::new();
     // FIXME: What if one of the thread crashes?
-    for mut received in rx.iter().take(file_count) {
-        for (path, logs) in &mut received {
-            let all_path_logs = path_log_map.entry(path.to_string()).or_insert(Vec::new());
-            all_path_logs.append(logs);
-        }
+    for received in rx.iter().take(file_count) {
+        log_db.merge(received);
     }
-    path_log_map
+    log_db
 }
 
 fn read_file(path: &String) -> String {
@@ -117,14 +128,14 @@ fn read_file(path: &String) -> String {
     contents
 }
 
-fn parse_file(log_path: &String, config: Config) -> HashMap<String, Vec<ParsedLine>> {
+fn parse_file(log_path: &String, config: Config) -> LogDB {
     println!("Parsing logs from {}", log_path);
     let contents = read_file(log_path);
     parse_string(contents, config)
 }
 
-fn parse_string(contents: String, config: Config) -> HashMap<String, Vec<ParsedLine>> {
-    let mut group_by_path = HashMap::new();
+fn parse_string(contents: String, config: Config) -> LogDB {
+    let mut log_db = LogDB::new();
     for line in contents.lines() {
         let parsed = parse_line(line);
         if parsed.is_none() {
@@ -141,11 +152,11 @@ fn parse_string(contents: String, config: Config) -> HashMap<String, Vec<ParsedL
             && (config.include_media || !is_media_path(&path))
             && (config.include_crawlers || !is_crawler(&parsed.user_agent))
         {
-            let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
-            parsed_lines.push(parsed);
+            // let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
+            log_db.insert_parsed_line(parsed);
         }
     }
-    group_by_path
+    log_db
 }
 
 #[derive(Debug)]
@@ -157,6 +168,51 @@ struct ParsedLine {
     status: i32,
     referrer: String,
     user_agent: String,
+}
+
+#[derive(Debug)]
+struct LogDB {
+    logs: Vec<ParsedLine>,
+    by_path: HashMap<String, Vec<usize>>,
+    by_date: BTreeMap<NaiveDate, Vec<usize>>,
+}
+
+impl LogDB {
+    fn new() -> LogDB {
+        LogDB {
+            logs: Vec::new(),
+            by_path: HashMap::new(),
+            by_date: BTreeMap::new(),
+        }
+    }
+    fn insert_parsed_line(&mut self, parsed_line: ParsedLine) {
+        let index = self.logs.len();
+        // Update by_path
+        let path_map = self
+            .by_path
+            .entry(parsed_line.path.clone())
+            .or_insert(vec![]);
+        path_map.push(index);
+        // Update by_date
+        let date_map = self
+            .by_date
+            .entry(parsed_line.date.naive_utc().date())
+            .or_insert(vec![]);
+        date_map.push(index);
+        // Update .logs
+        &self.logs.push(parsed_line);
+    }
+    fn merge(&mut self, other: LogDB) {
+        let n = self.logs.len();
+        for (path, value) in other.by_path {
+            let path_map = self.by_path.entry(path).or_insert(vec![]);
+            path_map.extend(value.iter().map(|x| x + n));
+        }
+        for (date, value) in other.by_date {
+            let date_map = self.by_date.entry(date).or_insert(vec![]);
+            date_map.extend(value.iter().map(|x| x + n));
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -228,11 +284,13 @@ mod tests {
             include_errors: false,
             ignore_query_params: true,
         };
-        let parsed_content = parse_string(String::from(log_contents), config);
-        assert_eq!(parsed_content.keys().len(), 2);
-        assert_eq!(parsed_content.contains_key("/rss.xml"), false);
-        assert_eq!(parsed_content.get("/index.xml").unwrap().len(), 2);
-        assert_eq!(parsed_content.get("/").unwrap().len(), 1);
+        let log_db = parse_string(String::from(log_contents), config);
+        assert_eq!(log_db.by_path.keys().len(), 2);
+        assert_eq!(log_db.by_path.contains_key("/rss.xml"), false);
+        assert_eq!(log_db.by_path.get("/index.xml").unwrap().len(), 2);
+        assert_eq!(log_db.by_path.get("/index.xml").unwrap(), &vec![1_usize, 2]);
+        assert_eq!(log_db.by_path.get("/").unwrap().len(), 1);
+        assert_eq!(log_db.by_path.get("/").unwrap(), &vec![0_usize]);
     }
 
     #[test]
