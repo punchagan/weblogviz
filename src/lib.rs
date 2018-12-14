@@ -82,6 +82,12 @@ fn print_daily_hits(log_db: &LogDB, last_n: usize) {
     let n = min(last_n, sorted_dates.len());
     for date in &sorted_dates[..n] {
         println!("{}:\t{}", date, log_db.by_date.get(date).unwrap().len());
+        let mut filtered_log_db = LogDB::new();
+        for index in log_db.by_date.get(date).unwrap() {
+            let parsed_line = log_db.logs[*index as usize].clone();
+            filtered_log_db.insert_parsed_line(parsed_line);
+        }
+        print_stats(compute_stats(&filtered_log_db), n);
     }
 }
 
@@ -152,14 +158,13 @@ fn parse_string(contents: String, config: Config) -> LogDB {
             && (config.include_media || !is_media_path(&path))
             && (config.include_crawlers || !is_crawler(&parsed.user_agent))
         {
-            // let parsed_lines = group_by_path.entry(path).or_insert(vec![]);
             log_db.insert_parsed_line(parsed);
         }
     }
     log_db
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ParsedLine {
     ip: String,
     date: DateTime<FixedOffset>,
