@@ -12,6 +12,10 @@ args:
         help: Number of items to print
         short: n
         takes_value: true
+    - d:
+        help: Number of days to print logs for
+        short: d
+        takes_value: true
     - include-errors:
         help: Include error lines in all calculations
         short: e

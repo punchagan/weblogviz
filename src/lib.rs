@@ -15,7 +15,7 @@ use std::fs;
 use std::io::prelude::Read;
 use std::sync::mpsc;
 
-pub fn run(paths: Vec<String>, n: usize, config: Config) -> Result<(), Box<dyn Error>> {
+pub fn run(paths: Vec<String>, n: usize, d: usize, config: Config) -> Result<(), Box<dyn Error>> {
     let log_db;
     if paths.len() > 1 {
         log_db = parse_files(paths, config);
@@ -33,7 +33,7 @@ pub fn run(paths: Vec<String>, n: usize, config: Config) -> Result<(), Box<dyn E
 
     let stats = compute_stats(&log_db);
     print_stats(stats, n);
-    print_daily_hits(&log_db, n);
+    print_daily_hits(&log_db, d, n);
     Ok(())
 }
 
@@ -75,12 +75,13 @@ fn print_stats(counts: Vec<(usize, String)>, top_n: usize) {
     println!("##############################################");
 }
 
-fn print_daily_hits(log_db: &LogDB, last_n: usize) {
+fn print_daily_hits(log_db: &LogDB, days: usize, last_n: usize) {
     println!("Date:\t\t# of hits");
     let mut sorted_dates: Vec<NaiveDate> = log_db.by_date.keys().cloned().collect();
     sorted_dates.sort_by(|a, b| b.cmp(a));
     let n = min(last_n, sorted_dates.len());
-    for date in &sorted_dates[..n] {
+    let d = min(days, sorted_dates.len());
+    for date in &sorted_dates[..d] {
         println!("{}:\t{}", date, log_db.by_date.get(date).unwrap().len());
         let mut filtered_log_db = LogDB::new();
         for index in log_db.by_date.get(date).unwrap() {

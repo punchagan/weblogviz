@@ -8,6 +8,7 @@ fn main() {
     let yaml = load_yaml!("cli.yml");
     let m = clap::App::from_yaml(yaml).get_matches();
     let num_log: Result<usize, _> = String::from(m.value_of("n").unwrap_or("10")).parse();
+    let num_days: Result<usize, _> = String::from(m.value_of("d").unwrap_or("7")).parse();
     let paths: Vec<String> = m
         .values_of("INPUT")
         .unwrap()
@@ -26,8 +27,15 @@ fn main() {
         }
         Ok(_) => {}
     }
+    match num_days {
+        Err(_) => {
+            println!("Number of days needs to be a number");
+            process::exit(1);
+        }
+        Ok(_) => {}
+    }
 
-    if let Err(e) = weblogviz::run(paths, num_log.unwrap(), config) {
+    if let Err(e) = weblogviz::run(paths, num_log.unwrap(), num_days.unwrap(), config) {
         println!("Application error: {}", e);
         process::exit(1);
     }
