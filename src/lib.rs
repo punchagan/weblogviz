@@ -212,6 +212,9 @@ impl LogDB {
             let date_map = self.by_date.entry(date).or_insert(vec![]);
             date_map.extend(value.iter().map(|x| x + n));
         }
+        for line in other.logs {
+            self.logs.push(line);
+        }
     }
 }
 
